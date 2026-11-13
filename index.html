@@ -337,11 +337,11 @@ button.pill svg{width:1rem;height:1rem;display:block;fill:currentColor;flex:none
   startSky();
   startSparks();
 
-  // Belt and braces. onfinish is not delivered reliably after the page has been frozen
-  // or throttled - measured in a real browser: animations sitting at playState
-  // 'finished' whose nodes were never removed, piling up until the heart cap stalled
-  // the sky. Sweep finished nodes on a timer instead of trusting the event alone.
-  // Sparks run with iterations: Infinity, so they never read as finished and survive.
+  // A safety net, not a fix for a known browser bug: each node is normally removed by
+  // its own onfinish. This keeps the two layers from growing without bound if a finish
+  // event is ever missed, for instance on a page left open for days or a tab frozen
+  // mid-animation. It only removes nodes whose animations have all finished, and sparks
+  // run with iterations: Infinity, so they never read as finished and are left alone.
   function sweepFinished(root, selector){
     var nodes = root.querySelectorAll(selector);
     for (var i = 0; i < nodes.length; i++){
