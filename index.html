@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="sv">
+<!-- Requested: a fancy, cute, animated romantic page that says "du är bäst sötis" with a heart. -->
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Du är bäst, sötis</title>
+<meta name="description" content="En liten kärleksfull sida med ett bankande hjärta.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 92'%3E%3Cpath d='M50 90C50 90 4 62 4 32 4 15 17 4 31 4c9 0 16 5 19 12 3-7 10-12 19-12 14 0 27 11 27 28 0 30-46 58-46 58z' fill='%23ff7ab3'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pacifico&family=Quicksand:wght@400;500;600;700&display=swap">
+<style>
+/* Scene: a glowing, beating heart in a rose dusk sky, with small hearts drifting upward behind it. */
+:root{
+  --night:#2b0f2e;
+  --night-mid:#56143f;
+  --night-low:#190a1d;
+  --rose:#ff7ab3;
+  --rose-deep:#e23a7c;
+  --blush:#ffd8e8;
+  --cream:#fff5f9;
+  --gold:#ffd690;
+  --soft:rgba(255,245,249,.74);
+  --font-display:"Pacifico","Segoe Script",cursive;
+  --font-body:"Quicksand",ui-rounded,"Segoe UI",system-ui,sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;
+  font-family:var(--font-body);
+  color:var(--cream);
+  background:
+    radial-gradient(115% 80% at 50% -5%, #6d1a4c 0%, rgba(109,26,76,0) 62%),
+    radial-gradient(95% 70% at 12% 102%, #8a2152 0%, rgba(138,33,82,0) 58%),
+    linear-gradient(180deg, var(--night) 0%, var(--night-mid) 52%, var(--night-low) 100%);
+  overflow-x:hidden;
+  display:grid;
+  place-items:center;
+}
+#sky{position:fixed;inset:0;overflow:hidden;pointer-events:none;z-index:0}
+.float-heart{position:absolute;bottom:-14vh;will-change:transform,opacity;animation:drift var(--dur,12s) linear forwards}
+.float-heart svg{display:block;width:100%;height:auto;fill:var(--tint,var(--rose))}
+.spark{position:absolute;width:var(--s,10px);height:var(--s,10px);animation:twinkle var(--tw,4s) ease-in-out infinite;animation-delay:var(--td,0s)}
+.spark svg{display:block;width:100%;height:auto;fill:var(--gold)}
+@keyframes drift{
+  0%{transform:translate3d(0,0,0) rotate(0deg);opacity:0}
+  12%{opacity:var(--op,.5)}
+  85%{opacity:var(--op,.5)}
+  100%{transform:translate3d(var(--sway,0px),-118vh,0) rotate(var(--spin,20deg));opacity:0}
+}
+@keyframes twinkle{0%,100%{opacity:.15;transform:scale(.7)}50%{opacity:.9;transform:scale(1.1)}}
+
+.stage{
+  position:relative;z-index:1;
+  width:100%;max-width:40rem;
+  margin-inline:auto;
+  padding-left:max(16px,env(safe-area-inset-left,0px));
+  padding-right:max(16px,env(safe-area-inset-right,0px));
+  padding-block:clamp(2.5rem,8vh,5rem);
+  text-align:center;
+  display:flex;flex-direction:column;align-items:center;gap:clamp(1.4rem,4vh,2.4rem);
+}
+.eyebrow{
+  margin:0;font-size:.78rem;font-weight:600;letter-spacing:.32em;text-transform:uppercase;
+  color:var(--blush);opacity:.8;
+  animation:fadeUp .7s ease-out both
+}
+.title{
+  margin:0;font-family:var(--font-display);font-weight:400;line-height:1.02;
+  font-size:clamp(2.7rem,12vw,5rem);text-wrap:balance;
+  text-shadow:0 0 34px rgba(255,122,179,.35);
+  animation:fadeUp .8s .06s ease-out both
+}
+.title span{
+  display:block;
+  background:linear-gradient(100deg,var(--blush) 0%,var(--rose) 45%,var(--gold) 100%);
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+}
+.title .big{font-size:1.24em;margin-top:.08em;filter:drop-shadow(0 6px 26px rgba(226,58,124,.45))}
+
+.heart-btn{
+  appearance:none;border:0;background:none;padding:0;cursor:pointer;
+  position:relative;width:clamp(10rem,46vw,15rem);max-width:100%;aspect-ratio:100/92;
+  animation:fadeUp .8s .12s ease-out both
+}
+.heart-btn::after{
+  content:"";position:absolute;inset:-22%;border-radius:50%;
+  background:radial-gradient(circle,rgba(255,122,179,.55) 0%,rgba(255,122,179,0) 68%);
+  filter:blur(6px);animation:halo 1.6s ease-in-out infinite;z-index:-1
+}
+.heart-btn svg{display:block;width:100%;height:auto;animation:beat 1.6s ease-in-out infinite;transform-origin:50% 60%}
+.heart-btn:focus-visible{outline:3px solid var(--gold);outline-offset:14px;border-radius:24px}
+.heart-btn:active svg{animation:none;transform:scale(.94)}
+@keyframes beat{0%{transform:scale(1)}14%{transform:scale(1.09)}28%{transform:scale(1)}42%{transform:scale(1.05)}60%,100%{transform:scale(1)}}
+@keyframes halo{0%,100%{opacity:.5;transform:scale(.96)}30%{opacity:.95;transform:scale(1.06)}}
+@keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+
+.line{
+  margin:0;min-height:3.2em;font-size:clamp(1.05rem,3.6vw,1.3rem);font-weight:500;line-height:1.55;
+  color:var(--soft);max-width:26rem;transition:opacity .28s ease,transform .28s ease;
+  animation:fadeUp .8s .18s ease-out both
+}
+.line.swap{opacity:0;transform:translateY(6px)}
+.meta{
+  margin:0;display:inline-flex;align-items:center;gap:.55rem;
+  font-size:.8rem;font-weight:600;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--blush);background:rgba(255,216,232,.1);
+  border:1px solid rgba(255,216,232,.26);border-radius:999px;padding:.5rem 1.05rem;
+  animation:fadeUp .8s .24s ease-out both
+}
+.meta b{font-variant-numeric:tabular-nums;font-size:.95rem;color:var(--cream)}
+.hint{margin:0;font-size:.85rem;color:var(--soft);opacity:.75}
+
+#burst{position:fixed;inset:0;pointer-events:none;z-index:2;overflow:hidden}
+.pop{position:absolute;width:var(--s,20px);transform:translate(-50%,-50%);animation:pop var(--dur,1s) cubic-bezier(.2,.7,.3,1) forwards}
+.pop svg{display:block;width:100%;height:auto;fill:var(--tint,var(--rose))}
+@keyframes pop{
+  0%{opacity:1;transform:translate(-50%,-50%) scale(.4) rotate(0deg)}
+  70%{opacity:1}
+  100%{opacity:0;transform:translate(calc(-50% + var(--tx)),calc(-50% + var(--ty))) scale(1.1) rotate(var(--rot,40deg))}
+}
+
+@media (prefers-reduced-motion: reduce){
+  .heart-btn svg,.heart-btn::after,.spark{animation:none}
+  .eyebrow,.title,.heart-btn,.line,.meta{animation:none}
+  .float-heart{display:none}
+}
+</style>
+</head>
+<body>
+<div id="sky" aria-hidden="true"></div>
+<div id="burst" aria-hidden="true"></div>
+
+<main class="stage">
+  <p class="eyebrow">till dig</p>
+
+  <h1 class="title"><span>Du är bäst,</span><span class="big">sötis</span></h1>
+
+  <button class="heart-btn" id="heart" type="button" aria-label="Skicka en puss">
+    <svg viewBox="0 0 100 92" role="img" aria-hidden="true">
+      <defs>
+        <radialGradient id="g" cx="36%" cy="26%" r="78%">
+          <stop offset="0%" stop-color="#ffe3ef"/>
+          <stop offset="38%" stop-color="#ff7ab3"/>
+          <stop offset="100%" stop-color="#c22463"/>
+        </radialGradient>
+      </defs>
+      <path d="M50 90C50 90 4 62 4 32 4 15 17 4 31 4c9 0 16 5 19 12 3-7 10-12 19-12 14 0 27 11 27 28 0 30-46 58-46 58z" fill="url(#g)"/>
+      <path d="M26 16c-7 2-12 8-12 16" fill="none" stroke="#fff5f9" stroke-opacity=".7" stroke-width="5" stroke-linecap="round"/>
+    </svg>
+  </button>
+
+  <p class="line" id="line">Du gör helt vanliga dagar fina bara genom att finnas.</p>
+
+  <p class="meta">pussar skickade <b id="count">0</b></p>
+  <p class="hint">Tryck på hjärtat.</p>
+</main>
+
+<script>
+(function(){
+  var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var sky = document.getElementById('sky');
+  var burst = document.getElementById('burst');
+  var heart = document.getElementById('heart');
+  var line = document.getElementById('line');
+  var countEl = document.getElementById('count');
+
+  var HEART_SVG = '<svg viewBox="0 0 100 92" aria-hidden="true"><path d="M50 90C50 90 4 62 4 32 4 15 17 4 31 4c9 0 16 5 19 12 3-7 10-12 19-12 14 0 27 11 27 28 0 30-46 58-46 58z"/></svg>';
+  var STAR_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 0l2.2 9.8L24 12l-9.8 2.2L12 24l-2.2-9.8L0 12l9.8-2.2z"/></svg>';
+  var TINTS = ['var(--rose)','var(--blush)','var(--gold)','var(--rose-deep)'];
+
+  function pick(a){ return a[Math.floor(Math.random()*a.length)]; }
+
+  function makeHeart(seeded){
+    var el = document.createElement('span');
+    el.className = 'float-heart';
+    el.innerHTML = HEART_SVG;
+    var size = 10 + Math.random()*26;
+    var dur = 9 + Math.random()*10;
+    el.style.width = size.toFixed(1) + 'px';
+    el.style.left = (Math.random()*98).toFixed(2) + 'vw';
+    el.style.setProperty('--dur', dur.toFixed(2) + 's');
+    el.style.setProperty('--sway', (Math.random()*80 - 40).toFixed(1) + 'px');
+    el.style.setProperty('--spin', (Math.random()*60 - 30).toFixed(1) + 'deg');
+    el.style.setProperty('--op', (0.3 + Math.random()*0.45).toFixed(2));
+    el.style.setProperty('--tint', pick(TINTS));
+    if (seeded) el.style.animationDelay = '-' + (Math.random()*dur).toFixed(2) + 's';
+    el.addEventListener('animationend', function(){ el.remove(); });
+    sky.appendChild(el);
+  }
+
+  function makeSpark(){
+    var el = document.createElement('span');
+    el.className = 'spark';
+    el.innerHTML = STAR_SVG;
+    el.style.left = (Math.random()*96).toFixed(2) + 'vw';
+    el.style.top = (Math.random()*86).toFixed(2) + 'vh';
+    el.style.setProperty('--s', (6 + Math.random()*10).toFixed(1) + 'px');
+    el.style.setProperty('--tw', (3 + Math.random()*4).toFixed(2) + 's');
+    el.style.setProperty('--td', (Math.random()*4).toFixed(2) + 's');
+    sky.appendChild(el);
+  }
+
+  if (!reduce){
+    for (var i = 0; i < 16; i++) makeHeart(true);
+    setInterval(makeHeart, 900);
+  }
+  for (var s = 0; s < 22; s++) makeSpark();
+
+  var LINES = [
+    'Du gör helt vanliga dagar fina bara genom att finnas.',
+    'Finaste leendet, finaste skrattet, finaste du.',
+    'Jag blir glad av dig varje dag.',
+    'Du är min favoritmänniska, sötis.',
+    'Tack för att du är precis som du är.',
+    'Och ja, du är fortfarande bäst.'
+  ];
+  var li = 0;
+  var kisses = 0;
+
+  function popHearts(x, y){
+    var n = reduce ? 4 : 14;
+    for (var i = 0; i < n; i++){
+      var el = document.createElement('span');
+      el.className = 'pop';
+      el.innerHTML = HEART_SVG;
+      var ang = (Math.PI * 2 * i) / n + Math.random() * 0.5;
+      var dist = 70 + Math.random() * 130;
+      el.style.left = x + 'px';
+      el.style.top = y + 'px';
+      el.style.setProperty('--s', (12 + Math.random()*20).toFixed(1) + 'px');
+      el.style.setProperty('--tx', (Math.cos(ang) * dist).toFixed(1) + 'px');
+      el.style.setProperty('--ty', (Math.sin(ang) * dist - 40).toFixed(1) + 'px');
+      el.style.setProperty('--rot', (Math.random()*120 - 60).toFixed(1) + 'deg');
+      el.style.setProperty('--dur', (0.9 + Math.random()*0.6).toFixed(2) + 's');
+      el.style.setProperty('--tint', pick(TINTS));
+      el.addEventListener('animationend', function(){ this.remove(); });
+      burst.appendChild(el);
+    }
+  }
+
+  heart.addEventListener('click', function(){
+    var r = heart.getBoundingClientRect();
+    popHearts(r.left + r.width/2, r.top + r.height/2);
+    kisses += 1;
+    countEl.textContent = kisses;
+    li = (li + 1) % LINES.length;
+    line.classList.add('swap');
+    setTimeout(function(){
+      line.textContent = LINES[li];
+      line.classList.remove('swap');
+    }, 280);
+  });
+})();
+</script>
+</body>
+</html>
