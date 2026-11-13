@@ -16,7 +16,10 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 92'%3E%3Cpath d='M50 90C50 90 4 62 4 32 4 15 17 4 31 4c9 0 16 5 19 12 3-7 10-12 19-12 14 0 27 11 27 28 0 30-46 58-46 58z' fill='%23ff7ab3'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pacifico&family=Quicksand:wght@400;500;600;700&display=swap">
+<!-- Loaded without blocking the first paint: a render-blocking stylesheet leaves the page
+     blank on a slow phone connection, and the fallback stack reads fine in the meantime. -->
+<link rel="stylesheet" media="print" onload="this.media='all'" href="https://fonts.googleapis.com/css2?family=Pacifico&family=Quicksand:wght@400;500;600;700&display=swap">
+<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pacifico&family=Quicksand:wght@400;500;600;700&display=swap"></noscript>
 <style>
 /* Scene: a glowing, beating heart in a rose dusk sky, with small hearts drifting upward behind it. */
 :root{
@@ -137,7 +140,9 @@ body{
   margin:0;min-height:3.1em;font-size:clamp(1.02rem,3.5vw,1.28rem);font-weight:500;line-height:1.55;
   color:var(--soft);max-width:26rem;
   -webkit-transition:opacity .28s ease,transform .28s ease;transition:opacity .28s ease,transform .28s ease;
-  animation:fadeUp .8s .18s ease-out both
+  /* backwards, not both: a forwards fill keeps asserting opacity:1, which outranks
+     .line.swap in the cascade and silently killed the crossfade on every tap. */
+  animation:fadeUp .8s .18s ease-out backwards
 }
 .line.swap{opacity:0;-webkit-transform:translateY(6px);transform:translateY(6px)}
 
@@ -220,6 +225,7 @@ button.pill svg{width:1rem;height:1rem;display:block;fill:currentColor;flex:none
   var countEl = document.getElementById('count');
   var musicBtn = document.getElementById('music');
   var musicLabel = document.getElementById('music-label');
+  var hintEl = document.querySelector('.hint');
 
   // Web Animations API is used instead of CSS keyframes with var(): Safari resolves custom
   // properties inside @keyframes unreliably, which left the ambient animations frozen on iPhone.
@@ -331,12 +337,27 @@ button.pill svg{width:1rem;height:1rem;display:block;fill:currentColor;flex:none
   startSky();
   startSparks();
 
-  // Rebuild the ambient layer after a rotation or a resize, so positions match the new viewport.
+  // Rebuild the ambient layer after a rotation, so positions match the new viewport.
+  // Safari on iOS fires resize every time the address bar collapses or expands while
+  // scrolling, so only a width change counts — otherwise an ordinary scroll would wipe
+  // every drifting heart mid-flight and restart the sky.
   var resizeTimer = null;
+  var lastW = window.innerWidth;
   window.addEventListener('resize', function(){
+    if (window.innerWidth === lastW) return;
+    lastW = window.innerWidth;
     if (resizeTimer) clearTimeout(resizeTimer);
     resizeTimer = setTimeout(function(){
-      sky.innerHTML = '';
+      // Cancel first: clearing the container leaves infinite spark animations running
+      // on detached nodes, which would pile up on every rotation.
+      var nodes = sky.querySelectorAll('.float-heart,.spark');
+      for (var i = 0; i < nodes.length; i++){
+        if (nodes[i].getAnimations){
+          var list = nodes[i].getAnimations();
+          for (var j = 0; j < list.length; j++) list[j].cancel();
+        }
+      }
+      sky.textContent = '';
       startSky();
       startSparks();
     }, 350);
@@ -396,7 +417,7 @@ button.pill svg{width:1rem;height:1rem;display:block;fill:currentColor;flex:none
   }
 
   function tick(){
-    if (!ctx || !playing) return;
+    if (!ctx || !playing || ctx.state !== 'running') return;
     while (nextBarAt < ctx.currentTime + 0.6){
       scheduleBar(nextBarAt, bar);
       bar++;
@@ -410,8 +431,13 @@ button.pill svg{width:1rem;height:1rem;display:block;fill:currentColor;flex:none
     try {
       ctx = new AC();
     } catch (e) { return false; }
+    // iOS routes raw Web Audio through the 'ambient' session, which the ring/silent
+    // switch mutes. navigator.audioSession fixes that, but only from iOS 16.4 — on
+    // older iPhones say so instead of playing to nobody.
     if (navigator.audioSession) {
       try { navigator.audioSession.type = 'playback'; } catch (e) {}
+    } else if (hintEl) {
+      hintEl.textContent = 'Tryck på hjärtat. Hör du ingen musik? Kolla ljudknappen på sidan av telefonen.';
     }
     master = ctx.createGain();
     master.gain.value = 0.0001;
@@ -428,6 +454,19 @@ button.pill svg{width:1rem;height:1rem;display:block;fill:currentColor;flex:none
     delay.connect(wet);
     wet.connect(ctx.destination);
     return true;
+  }
+
+  // WebKit also parks a context in a non-standard 'interrupted' state after a call,
+  // Siri, an alarm or another app taking the audio session, so anything that is not
+  // 'running' needs waking, not just 'suspended'. resume() can throw there as well.
+  function wake(){
+    if (!ctx || !ctx.resume) return;
+    if (ctx.state !== 'running'){
+      try {
+        var p = ctx.resume();
+        if (p && p.catch) p.catch(function(){});
+      } catch (e) {}
+    }
   }
 
   function fadeTo(value, seconds){
@@ -450,7 +489,7 @@ button.pill svg{width:1rem;height:1rem;display:block;fill:currentColor;flex:none
       musicBtn.disabled = true;
       return;
     }
-    if (ctx.state === 'suspended' && ctx.resume) ctx.resume();
+    wake();
 
     if (playing){
       setMusic(false);
@@ -460,7 +499,9 @@ button.pill svg{width:1rem;height:1rem;display:block;fill:currentColor;flex:none
     }
 
     setMusic(true);
-    nextBarAt = ctx.currentTime + 0.12;
+    // Pausing leaves up to a few seconds of notes already scheduled; starting again
+    // from the current time would play a second copy on top of them, out of phase.
+    nextBarAt = Math.max(nextBarAt, ctx.currentTime + 0.12);
     tick();
     fadeTo(VOLUME, 1.2);
     if (sched) clearInterval(sched);
@@ -469,7 +510,7 @@ button.pill svg{width:1rem;height:1rem;display:block;fill:currentColor;flex:none
 
   // A short chime on the heart, but only once the music is already running.
   function chime(){
-    if (!ctx || !playing) return;
+    if (!ctx || !playing || ctx.state !== 'running') return;
     var at = ctx.currentTime + 0.01;
     var notes = [1046.50, 1318.51, 1567.98];
     for (var i = 0; i < notes.length; i++){
@@ -479,11 +520,27 @@ button.pill svg{width:1rem;height:1rem;display:block;fill:currentColor;flex:none
 
   document.addEventListener('visibilitychange', function(){
     if (!ctx) return;
-    if (document.hidden && playing && ctx.suspend) ctx.suspend();
-    else if (!document.hidden && playing && ctx.resume) {
-      ctx.resume();
-      nextBarAt = Math.max(nextBarAt, ctx.currentTime + 0.1);
+    if (document.hidden){
+      if (playing && ctx.suspend) ctx.suspend();
+      return;
     }
+    if (!playing) return;
+    wake();
+    // Do not trust resume()'s promise or ctx.state on iOS: both can report success
+    // while the clock stays frozen. Check whether time actually moved instead.
+    var before = ctx.currentTime;
+    setTimeout(function(){
+      if (!playing || document.hidden) return;
+      if (ctx.currentTime > before){
+        nextBarAt = Math.max(nextBarAt, ctx.currentTime + 0.1);
+        return;
+      }
+      // Still frozen: hand control back so the next tap restarts inside a real gesture.
+      if (sched){ clearInterval(sched); sched = null; }
+      master.gain.cancelScheduledValues(0);
+      master.gain.value = 0.0001;
+      setMusic(false);
+    }, 400);
   });
 
   // ---- Heart ------------------------------------------------------------------------
@@ -497,6 +554,7 @@ button.pill svg{width:1rem;height:1rem;display:block;fill:currentColor;flex:none
   ];
   var li = 0;
   var kisses = 0;
+  var swapTimer = null;
 
   heart.addEventListener('click', function(){
     var r = heart.getBoundingClientRect();
@@ -504,12 +562,17 @@ button.pill svg{width:1rem;height:1rem;display:block;fill:currentColor;flex:none
     chime();
     kisses += 1;
     countEl.textContent = kisses;
-    li = (li + 1) % LINES.length;
-    line.classList.add('swap');
-    setTimeout(function(){
-      line.textContent = LINES[li];
-      line.classList.remove('swap');
-    }, 280);
+    // One fade at a time, and the line advances only when a fade really renders, so
+    // fast tapping cannot cut a fade short or skip past a message unseen.
+    if (!swapTimer){
+      line.classList.add('swap');
+      swapTimer = setTimeout(function(){
+        li = (li + 1) % LINES.length;
+        line.textContent = LINES[li];
+        line.classList.remove('swap');
+        swapTimer = null;
+      }, 280);
+    }
   });
 })();
 </script>
