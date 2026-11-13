@@ -793,7 +793,9 @@ button.pill svg{width:1rem;height:1rem;display:block;fill:currentColor;flex:none
       if (seen[0] === seen[1] && seen[1] === seen[2]) startBeatByFrames();
     })();
   }
-  raf(function(){ setTimeout(watchBeat, 100); });
+  // Plain timers, deliberately: gating this on requestAnimationFrame would mean the check
+  // never runs in the one case it is for, a browser that has stopped delivering frames.
+  setTimeout(watchBeat, 150);
 
   // The press state is set from events rather than :active, which iOS can leave stuck on
   // an element after a tap.
