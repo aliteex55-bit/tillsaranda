@@ -1,11 +1,18 @@
 <!DOCTYPE html>
 <html lang="sv">
-<!-- Requested: a fancy, cute, animated romantic page that says "du är bäst sötis" with a heart. -->
+<!-- Requested: a fancy, cute, animated romantic page that says "du är bäst sötis" with a heart.
+     Follow-up requests: address the page to Saranda by name, make the animation work in
+     Safari on iPhone, and add some cute music.
+     iOS notes: the drifting hearts, sparkles and burst are driven by the Web Animations API
+     instead of CSS keyframes that read custom properties, because WebKit resolves var()
+     inside @keyframes unreliably. The music is synthesised with Web Audio and only starts
+     from a tap, since iOS blocks autoplay with sound. -->
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#2b0f2e">
 <title>Du är bäst, sötis</title>
-<meta name="description" content="En liten kärleksfull sida med ett bankande hjärta.">
+<meta name="description" content="En liten kärleksfull sida till Saranda.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 92'%3E%3Cpath d='M50 90C50 90 4 62 4 32 4 15 17 4 31 4c9 0 16 5 19 12 3-7 10-12 19-12 14 0 27 11 27 28 0 30-46 58-46 58z' fill='%23ff7ab3'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -22,12 +29,13 @@
   --cream:#fff5f9;
   --gold:#ffd690;
   --soft:rgba(255,245,249,.74);
-  --font-display:"Pacifico","Segoe Script",cursive;
-  --font-body:"Quicksand",ui-rounded,"Segoe UI",system-ui,sans-serif;
+  --font-display:"Pacifico","Snell Roundhand","Segoe Script",cursive;
+  --font-body:"Quicksand",-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
   color-scheme:dark;
 }
 *{box-sizing:border-box}
-html,body{height:100%}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+html,body{min-height:100%}
 body{
   margin:0;
   font-family:var(--font-body);
@@ -36,97 +44,126 @@ body{
     radial-gradient(115% 80% at 50% -5%, #6d1a4c 0%, rgba(109,26,76,0) 62%),
     radial-gradient(95% 70% at 12% 102%, #8a2152 0%, rgba(138,33,82,0) 58%),
     linear-gradient(180deg, var(--night) 0%, var(--night-mid) 52%, var(--night-low) 100%);
+  background-attachment:scroll;
+  background-color:var(--night);
   overflow-x:hidden;
-  display:grid;
-  place-items:center;
 }
-#sky{position:fixed;inset:0;overflow:hidden;pointer-events:none;z-index:0}
-.float-heart{position:absolute;bottom:-14vh;will-change:transform,opacity;animation:drift var(--dur,12s) linear forwards}
-.float-heart svg{display:block;width:100%;height:auto;fill:var(--tint,var(--rose))}
-.spark{position:absolute;width:var(--s,10px);height:var(--s,10px);animation:twinkle var(--tw,4s) ease-in-out infinite;animation-delay:var(--td,0s)}
-.spark svg{display:block;width:100%;height:auto;fill:var(--gold)}
-@keyframes drift{
-  0%{transform:translate3d(0,0,0) rotate(0deg);opacity:0}
-  12%{opacity:var(--op,.5)}
-  85%{opacity:var(--op,.5)}
-  100%{transform:translate3d(var(--sway,0px),-118vh,0) rotate(var(--spin,20deg));opacity:0}
-}
-@keyframes twinkle{0%,100%{opacity:.15;transform:scale(.7)}50%{opacity:.9;transform:scale(1.1)}}
 
+/* Ambient layers. Both are painted behind the content and never take taps. */
+#sky,#burst{position:fixed;inset:0;overflow:hidden;pointer-events:none;-webkit-transform:translateZ(0);transform:translateZ(0)}
+#sky{z-index:0}
+#burst{z-index:3}
+.float-heart,.pop,.spark{position:absolute;top:0;left:0;will-change:transform,opacity}
+.float-heart svg,.pop svg,.spark svg{display:block;width:100%;height:auto;fill:currentColor}
+
+/* Content */
 .stage{
   position:relative;z-index:1;
   width:100%;max-width:40rem;
+  min-height:100vh;
+  min-height:100svh;
   margin-inline:auto;
   padding-left:max(16px,env(safe-area-inset-left,0px));
   padding-right:max(16px,env(safe-area-inset-right,0px));
-  padding-block:clamp(2.5rem,8vh,5rem);
+  padding-top:max(clamp(1.5rem,5vh,3rem),env(safe-area-inset-top,0px));
+  padding-bottom:max(clamp(1.5rem,5vh,3rem),env(safe-area-inset-bottom,0px));
   text-align:center;
-  display:flex;flex-direction:column;align-items:center;gap:clamp(1.4rem,4vh,2.4rem);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:clamp(1.1rem,3.4vh,2rem);
 }
 .eyebrow{
   margin:0;font-size:.78rem;font-weight:600;letter-spacing:.32em;text-transform:uppercase;
-  color:var(--blush);opacity:.8;
+  color:var(--blush);opacity:.85;
   animation:fadeUp .7s ease-out both
 }
 .title{
-  margin:0;font-family:var(--font-display);font-weight:400;line-height:1.02;
-  font-size:clamp(2.7rem,12vw,5rem);text-wrap:balance;
-  text-shadow:0 0 34px rgba(255,122,179,.35);
+  margin:0;font-family:var(--font-display);font-weight:400;line-height:1.04;
+  font-size:clamp(2.6rem,11.5vw,5rem);text-wrap:balance;
+  -webkit-filter:drop-shadow(0 0 26px rgba(255,122,179,.4));
+  filter:drop-shadow(0 0 26px rgba(255,122,179,.4));
   animation:fadeUp .8s .06s ease-out both
 }
 .title span{
   display:block;
-  background:linear-gradient(100deg,var(--blush) 0%,var(--rose) 45%,var(--gold) 100%);
-  -webkit-background-clip:text;background-clip:text;color:transparent;
+  background-image:linear-gradient(100deg,var(--blush) 0%,var(--rose) 45%,var(--gold) 100%);
+  -webkit-background-clip:text;background-clip:text;
+  -webkit-text-fill-color:transparent;color:transparent;
 }
-.title .big{font-size:1.24em;margin-top:.08em;filter:drop-shadow(0 6px 26px rgba(226,58,124,.45))}
+/* If a browser cannot clip a gradient to text, show solid pink instead of nothing. */
+@supports not ((-webkit-background-clip:text) or (background-clip:text)){
+  .title span{-webkit-text-fill-color:var(--blush);color:var(--blush)}
+}
+.title .big{font-size:1.24em;margin-top:.06em}
 
 .heart-btn{
-  appearance:none;border:0;background:none;padding:0;cursor:pointer;
-  position:relative;width:clamp(10rem,46vw,15rem);max-width:100%;aspect-ratio:100/92;
+  -webkit-appearance:none;appearance:none;border:0;background:none;padding:0;margin:0;
+  cursor:pointer;display:block;line-height:0;
+  width:clamp(9rem,42vw,14rem);max-width:100%;
+  -webkit-tap-highlight-color:transparent;touch-action:manipulation;
+  -webkit-user-select:none;user-select:none;
+  color:inherit;
   animation:fadeUp .8s .12s ease-out both
 }
-.heart-btn::after{
-  content:"";position:absolute;inset:-22%;border-radius:50%;
-  background:radial-gradient(circle,rgba(255,122,179,.55) 0%,rgba(255,122,179,0) 68%);
-  filter:blur(6px);animation:halo 1.6s ease-in-out infinite;z-index:-1
+.heart-wrap .glow{
+  position:absolute;inset:-20%;border-radius:50%;
+  background:radial-gradient(circle,rgba(255,122,179,.5) 0%,rgba(255,122,179,0) 68%);
+  animation:halo 1.6s ease-in-out infinite;pointer-events:none
 }
-.heart-btn svg{display:block;width:100%;height:auto;animation:beat 1.6s ease-in-out infinite;transform-origin:50% 60%}
+.heart-wrap{position:relative;display:block}
+.heart-btn svg{
+  display:block;width:100%;height:auto;position:relative;
+  animation:beat 1.6s ease-in-out infinite;
+  -webkit-transform-origin:50% 60%;transform-origin:50% 60%
+}
 .heart-btn:focus-visible{outline:3px solid var(--gold);outline-offset:14px;border-radius:24px}
-.heart-btn:active svg{animation:none;transform:scale(.94)}
-@keyframes beat{0%{transform:scale(1)}14%{transform:scale(1.09)}28%{transform:scale(1)}42%{transform:scale(1.05)}60%,100%{transform:scale(1)}}
-@keyframes halo{0%,100%{opacity:.5;transform:scale(.96)}30%{opacity:.95;transform:scale(1.06)}}
-@keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+.heart-btn:active svg{animation:none;-webkit-transform:scale(.94);transform:scale(.94)}
+@keyframes beat{
+  0%{-webkit-transform:scale(1);transform:scale(1)}
+  14%{-webkit-transform:scale(1.09);transform:scale(1.09)}
+  28%{-webkit-transform:scale(1);transform:scale(1)}
+  42%{-webkit-transform:scale(1.05);transform:scale(1.05)}
+  60%,100%{-webkit-transform:scale(1);transform:scale(1)}
+}
+@keyframes halo{
+  0%,100%{opacity:.5;-webkit-transform:scale(.96);transform:scale(.96)}
+  30%{opacity:.95;-webkit-transform:scale(1.06);transform:scale(1.06)}
+}
+@keyframes fadeUp{
+  from{opacity:0;-webkit-transform:translateY(14px);transform:translateY(14px)}
+  to{opacity:1;-webkit-transform:none;transform:none}
+}
 
 .line{
-  margin:0;min-height:3.2em;font-size:clamp(1.05rem,3.6vw,1.3rem);font-weight:500;line-height:1.55;
-  color:var(--soft);max-width:26rem;transition:opacity .28s ease,transform .28s ease;
+  margin:0;min-height:3.1em;font-size:clamp(1.02rem,3.5vw,1.28rem);font-weight:500;line-height:1.55;
+  color:var(--soft);max-width:26rem;
+  -webkit-transition:opacity .28s ease,transform .28s ease;transition:opacity .28s ease,transform .28s ease;
   animation:fadeUp .8s .18s ease-out both
 }
-.line.swap{opacity:0;transform:translateY(6px)}
-.meta{
-  margin:0;display:inline-flex;align-items:center;gap:.55rem;
-  font-size:.8rem;font-weight:600;letter-spacing:.14em;text-transform:uppercase;
-  color:var(--blush);background:rgba(255,216,232,.1);
-  border:1px solid rgba(255,216,232,.26);border-radius:999px;padding:.5rem 1.05rem;
-  animation:fadeUp .8s .24s ease-out both
-}
-.meta b{font-variant-numeric:tabular-nums;font-size:.95rem;color:var(--cream)}
-.hint{margin:0;font-size:.85rem;color:var(--soft);opacity:.75}
+.line.swap{opacity:0;-webkit-transform:translateY(6px);transform:translateY(6px)}
 
-#burst{position:fixed;inset:0;pointer-events:none;z-index:2;overflow:hidden}
-.pop{position:absolute;width:var(--s,20px);transform:translate(-50%,-50%);animation:pop var(--dur,1s) cubic-bezier(.2,.7,.3,1) forwards}
-.pop svg{display:block;width:100%;height:auto;fill:var(--tint,var(--rose))}
-@keyframes pop{
-  0%{opacity:1;transform:translate(-50%,-50%) scale(.4) rotate(0deg)}
-  70%{opacity:1}
-  100%{opacity:0;transform:translate(calc(-50% + var(--tx)),calc(-50% + var(--ty))) scale(1.1) rotate(var(--rot,40deg))}
+.controls{display:flex;flex-wrap:wrap;gap:.6rem;justify-content:center;align-items:center;animation:fadeUp .8s .24s ease-out both}
+.pill{
+  display:inline-flex;align-items:center;gap:.5rem;
+  font-family:inherit;font-size:.78rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--blush);background:rgba(255,216,232,.1);
+  border:1px solid rgba(255,216,232,.26);border-radius:999px;padding:.58rem 1.05rem;
+  margin:0
 }
+.pill b{font-variant-numeric:tabular-nums;font-size:.95rem;color:var(--cream)}
+button.pill{
+  -webkit-appearance:none;appearance:none;cursor:pointer;
+  -webkit-tap-highlight-color:transparent;touch-action:manipulation;
+  -webkit-transition:background-color .2s ease,border-color .2s ease;transition:background-color .2s ease,border-color .2s ease
+}
+button.pill:hover{background:rgba(255,216,232,.18)}
+button.pill[aria-pressed="true"]{background:rgba(255,122,179,.26);border-color:rgba(255,216,232,.5);color:var(--cream)}
+button.pill:focus-visible{outline:3px solid var(--gold);outline-offset:3px}
+button.pill svg{width:1rem;height:1rem;display:block;fill:currentColor;flex:none}
+.hint{margin:0;font-size:.82rem;color:var(--soft);opacity:.75}
 
 @media (prefers-reduced-motion: reduce){
-  .heart-btn svg,.heart-btn::after,.spark{animation:none}
-  .eyebrow,.title,.heart-btn,.line,.meta{animation:none}
-  .float-heart{display:none}
+  .heart-btn svg,.heart-wrap .glow{animation:none}
+  .eyebrow,.title,.heart-btn,.line,.controls{animation:none}
 }
 </style>
 </head>
@@ -135,116 +172,336 @@ body{
 <div id="burst" aria-hidden="true"></div>
 
 <main class="stage">
-  <p class="eyebrow">till dig</p>
+  <p class="eyebrow">till saranda</p>
 
   <h1 class="title"><span>Du är bäst,</span><span class="big">sötis</span></h1>
 
-  <button class="heart-btn" id="heart" type="button" aria-label="Skicka en puss">
-    <svg viewBox="0 0 100 92" role="img" aria-hidden="true">
-      <defs>
-        <radialGradient id="g" cx="36%" cy="26%" r="78%">
-          <stop offset="0%" stop-color="#ffe3ef"/>
-          <stop offset="38%" stop-color="#ff7ab3"/>
-          <stop offset="100%" stop-color="#c22463"/>
-        </radialGradient>
-      </defs>
-      <path d="M50 90C50 90 4 62 4 32 4 15 17 4 31 4c9 0 16 5 19 12 3-7 10-12 19-12 14 0 27 11 27 28 0 30-46 58-46 58z" fill="url(#g)"/>
-      <path d="M26 16c-7 2-12 8-12 16" fill="none" stroke="#fff5f9" stroke-opacity=".7" stroke-width="5" stroke-linecap="round"/>
-    </svg>
-  </button>
+  <span class="heart-wrap">
+    <span class="glow" aria-hidden="true"></span>
+    <button class="heart-btn" id="heart" type="button" aria-label="Skicka en puss">
+      <svg viewBox="0 0 100 92" aria-hidden="true" focusable="false">
+        <defs>
+          <radialGradient id="g" cx="36%" cy="26%" r="78%">
+            <stop offset="0%" stop-color="#ffe3ef"/>
+            <stop offset="38%" stop-color="#ff7ab3"/>
+            <stop offset="100%" stop-color="#c22463"/>
+          </radialGradient>
+        </defs>
+        <path d="M50 90C50 90 4 62 4 32 4 15 17 4 31 4c9 0 16 5 19 12 3-7 10-12 19-12 14 0 27 11 27 28 0 30-46 58-46 58z" fill="url(#g)"/>
+        <path d="M26 16c-7 2-12 8-12 16" fill="none" stroke="#fff5f9" stroke-opacity=".7" stroke-width="5" stroke-linecap="round"/>
+      </svg>
+    </button>
+  </span>
 
   <p class="line" id="line">Du gör helt vanliga dagar fina bara genom att finnas.</p>
 
-  <p class="meta">pussar skickade <b id="count">0</b></p>
+  <div class="controls">
+    <p class="pill">pussar skickade <b id="count">0</b></p>
+    <button class="pill" id="music" type="button" aria-pressed="false">
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M21 3v12.2a3.3 3.3 0 1 1-2-3V7.6l-8 1.7v8.9a3.3 3.3 0 1 1-2-3V6.1z"/></svg>
+      <span id="music-label">spela musik</span>
+    </button>
+  </div>
+
   <p class="hint">Tryck på hjärtat.</p>
 </main>
 
 <script>
 (function(){
-  var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  'use strict';
+
+  var reduce = false;
+  try { reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
+
   var sky = document.getElementById('sky');
   var burst = document.getElementById('burst');
   var heart = document.getElementById('heart');
   var line = document.getElementById('line');
   var countEl = document.getElementById('count');
+  var musicBtn = document.getElementById('music');
+  var musicLabel = document.getElementById('music-label');
 
-  var HEART_SVG = '<svg viewBox="0 0 100 92" aria-hidden="true"><path d="M50 90C50 90 4 62 4 32 4 15 17 4 31 4c9 0 16 5 19 12 3-7 10-12 19-12 14 0 27 11 27 28 0 30-46 58-46 58z"/></svg>';
-  var STAR_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 0l2.2 9.8L24 12l-9.8 2.2L12 24l-2.2-9.8L0 12l9.8-2.2z"/></svg>';
-  var TINTS = ['var(--rose)','var(--blush)','var(--gold)','var(--rose-deep)'];
+  // Web Animations API is used instead of CSS keyframes with var(): Safari resolves custom
+  // properties inside @keyframes unreliably, which left the ambient animations frozen on iPhone.
+  var canAnimate = typeof document.createElement('div').animate === 'function';
 
-  function pick(a){ return a[Math.floor(Math.random()*a.length)]; }
+  var HEART_SVG = '<svg viewBox="0 0 100 92" aria-hidden="true" focusable="false"><path d="M50 90C50 90 4 62 4 32 4 15 17 4 31 4c9 0 16 5 19 12 3-7 10-12 19-12 14 0 27 11 27 28 0 30-46 58-46 58z"/></svg>';
+  var STAR_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 0l2.2 9.8L24 12l-9.8 2.2L12 24l-2.2-9.8L0 12l9.8-2.2z"/></svg>';
+  var TINTS = ['#ff7ab3', '#ffd8e8', '#ffd690', '#e23a7c'];
+
+  function pick(a){ return a[Math.floor(Math.random() * a.length)]; }
+  function vw(){ return sky.clientWidth || window.innerWidth || 360; }
+  function vh(){ return sky.clientHeight || window.innerHeight || 640; }
 
   function makeHeart(seeded){
+    if (!canAnimate) return;
     var el = document.createElement('span');
     el.className = 'float-heart';
     el.innerHTML = HEART_SVG;
-    var size = 10 + Math.random()*26;
-    var dur = 9 + Math.random()*10;
+    var size = 10 + Math.random() * 26;
+    var dur = (9 + Math.random() * 10) * 1000;
+    var startY = vh() + 30;
+    var sway = Math.random() * 80 - 40;
+    var spin = Math.random() * 60 - 30;
+    var op = 0.3 + Math.random() * 0.45;
     el.style.width = size.toFixed(1) + 'px';
-    el.style.left = (Math.random()*98).toFixed(2) + 'vw';
-    el.style.setProperty('--dur', dur.toFixed(2) + 's');
-    el.style.setProperty('--sway', (Math.random()*80 - 40).toFixed(1) + 'px');
-    el.style.setProperty('--spin', (Math.random()*60 - 30).toFixed(1) + 'deg');
-    el.style.setProperty('--op', (0.3 + Math.random()*0.45).toFixed(2));
-    el.style.setProperty('--tint', pick(TINTS));
-    if (seeded) el.style.animationDelay = '-' + (Math.random()*dur).toFixed(2) + 's';
-    el.addEventListener('animationend', function(){ el.remove(); });
+    el.style.left = (Math.random() * (vw() - size)).toFixed(1) + 'px';
+    el.style.color = pick(TINTS);
     sky.appendChild(el);
+
+    var anim = el.animate([
+      { transform: 'translate3d(0,' + startY + 'px,0) rotate(0deg)', opacity: 0 },
+      { transform: 'translate3d(' + (sway * 0.35).toFixed(1) + 'px,' + (startY * 0.8).toFixed(1) + 'px,0) rotate(' + (spin * 0.3).toFixed(1) + 'deg)', opacity: op, offset: 0.14 },
+      { transform: 'translate3d(' + (sway * 0.85).toFixed(1) + 'px,' + (startY * 0.18).toFixed(1) + 'px,0) rotate(' + (spin * 0.8).toFixed(1) + 'deg)', opacity: op, offset: 0.86 },
+      { transform: 'translate3d(' + sway.toFixed(1) + 'px,-140px,0) rotate(' + spin.toFixed(1) + 'deg)', opacity: 0 }
+    ], { duration: dur, easing: 'linear', fill: 'forwards' });
+
+    if (seeded) { try { anim.currentTime = Math.random() * dur; } catch (e) {} }
+    anim.onfinish = function(){ el.remove(); };
   }
 
   function makeSpark(){
     var el = document.createElement('span');
     el.className = 'spark';
     el.innerHTML = STAR_SVG;
-    el.style.left = (Math.random()*96).toFixed(2) + 'vw';
-    el.style.top = (Math.random()*86).toFixed(2) + 'vh';
-    el.style.setProperty('--s', (6 + Math.random()*10).toFixed(1) + 'px');
-    el.style.setProperty('--tw', (3 + Math.random()*4).toFixed(2) + 's');
-    el.style.setProperty('--td', (Math.random()*4).toFixed(2) + 's');
+    var size = 6 + Math.random() * 10;
+    el.style.width = size.toFixed(1) + 'px';
+    el.style.color = '#ffd690';
+    el.style.transform = 'translate3d(' + (Math.random() * (vw() - size)).toFixed(1) + 'px,' + (Math.random() * (vh() - size)).toFixed(1) + 'px,0)';
+    el.style.opacity = '.35';
     sky.appendChild(el);
+    if (!canAnimate || reduce) return;
+    var base = el.style.transform;
+    el.animate([
+      { opacity: 0.12, transform: base + ' scale(0.7)' },
+      { opacity: 0.9, transform: base + ' scale(1.1)' },
+      { opacity: 0.12, transform: base + ' scale(0.7)' }
+    ], {
+      duration: 3000 + Math.random() * 4000,
+      iterations: Infinity,
+      delay: -Math.random() * 4000,
+      easing: 'ease-in-out'
+    });
   }
 
-  if (!reduce){
-    for (var i = 0; i < 16; i++) makeHeart(true);
-    setInterval(makeHeart, 900);
-  }
-  for (var s = 0; s < 22; s++) makeSpark();
+  function popHearts(x, y){
+    if (!canAnimate) return;
+    var n = reduce ? 5 : 14;
+    for (var i = 0; i < n; i++){
+      var el = document.createElement('span');
+      el.className = 'pop';
+      el.innerHTML = HEART_SVG;
+      var size = 12 + Math.random() * 20;
+      var ang = (Math.PI * 2 * i) / n + Math.random() * 0.5;
+      var dist = 70 + Math.random() * 130;
+      var tx = Math.cos(ang) * dist;
+      var ty = Math.sin(ang) * dist - 40;
+      var rot = Math.random() * 120 - 60;
+      el.style.width = size.toFixed(1) + 'px';
+      el.style.left = (x - size / 2).toFixed(1) + 'px';
+      el.style.top = (y - size / 2).toFixed(1) + 'px';
+      el.style.color = pick(TINTS);
+      burst.appendChild(el);
 
+      (function(node){
+        var a = node.animate([
+          { transform: 'translate3d(0,0,0) scale(.4) rotate(0deg)', opacity: 1 },
+          { transform: 'translate3d(' + (tx * 0.75).toFixed(1) + 'px,' + (ty * 0.75).toFixed(1) + 'px,0) scale(1.05) rotate(' + (rot * 0.7).toFixed(1) + 'deg)', opacity: 1, offset: 0.7 },
+          { transform: 'translate3d(' + tx.toFixed(1) + 'px,' + ty.toFixed(1) + 'px,0) scale(1.1) rotate(' + rot.toFixed(1) + 'deg)', opacity: 0 }
+        ], { duration: 900 + Math.random() * 600, easing: 'cubic-bezier(.2,.7,.3,1)', fill: 'forwards' });
+        a.onfinish = function(){ node.remove(); };
+      })(el);
+    }
+  }
+
+  // Ambient sky
+  var spawner = null;
+  function startSky(){
+    if (reduce || !canAnimate) return;
+    for (var i = 0; i < 14; i++) makeHeart(true);
+    if (spawner) clearInterval(spawner);
+    spawner = setInterval(function(){
+      if (document.hidden) return;
+      if (sky.querySelectorAll('.float-heart').length < 34) makeHeart(false);
+    }, 900);
+  }
+  function startSparks(){
+    for (var s = 0; s < 20; s++) makeSpark();
+  }
+  startSky();
+  startSparks();
+
+  // Rebuild the ambient layer after a rotation or a resize, so positions match the new viewport.
+  var resizeTimer = null;
+  window.addEventListener('resize', function(){
+    if (resizeTimer) clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(function(){
+      sky.innerHTML = '';
+      startSky();
+      startSparks();
+    }, 350);
+  });
+
+  // ---- Music: a small music box, synthesised in the browser. -------------------------
+  // iOS blocks sound until the user taps something, so the audio context is created in the
+  // tap handler. navigator.audioSession lets Safari play it even with the ringer switch off.
+  var AC = window.AudioContext || window.webkitAudioContext;
+  var ctx = null, master = null, sched = null;
+  var playing = false, bar = 0, nextBarAt = 0;
+
+  var BPM = 92, BEAT = 60 / BPM, BAR = BEAT * 4, VOLUME = 0.16;
+  var CHORDS = [
+    { bass: 130.81, arp: [261.63, 392.00, 523.25, 659.25] }, // C
+    { bass: 98.00,  arp: [196.00, 293.66, 392.00, 493.88] }, // G
+    { bass: 110.00, arp: [220.00, 329.63, 440.00, 523.25] }, // Am
+    { bass: 87.31,  arp: [174.61, 261.63, 349.23, 440.00] }  // F
+  ];
+  var ARP_PATTERN = [0, 1, 2, 3, 2, 1, 2, 3];
+  var MELODY = [
+    [[0, 783.99, 0.9], [1, 659.25, 0.6], [2, 523.25, 1.4]],
+    [[0, 587.33, 0.9], [1, 493.88, 0.6], [2, 392.00, 1.4]],
+    [[0, 523.25, 0.9], [1, 659.25, 0.6], [2, 440.00, 1.4]],
+    [[0, 698.46, 0.7], [1.5, 659.25, 0.5], [2, 587.33, 0.7], [3, 523.25, 1.1]]
+  ];
+
+  function note(freq, at, dur, vol, type){
+    var osc = ctx.createOscillator();
+    var gain = ctx.createGain();
+    var filt = ctx.createBiquadFilter();
+    osc.type = type || 'triangle';
+    osc.frequency.value = freq;
+    filt.type = 'lowpass';
+    filt.frequency.value = Math.min(7000, freq * 7);
+    gain.gain.setValueAtTime(0.0001, at);
+    gain.gain.exponentialRampToValueAtTime(Math.max(0.0002, vol), at + 0.014);
+    gain.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+    osc.connect(filt); filt.connect(gain); gain.connect(master);
+    osc.start(at);
+    osc.stop(at + dur + 0.06);
+  }
+
+  function scheduleBar(at, index){
+    var chord = CHORDS[index % CHORDS.length];
+    note(chord.bass, at, BAR * 0.95, 0.09, 'sine');
+    for (var i = 0; i < ARP_PATTERN.length; i++){
+      var t = at + i * (BEAT / 2);
+      note(chord.arp[ARP_PATTERN[i]], t, 0.55, 0.055 + Math.random() * 0.015, 'triangle');
+    }
+    var phrase = MELODY[index % MELODY.length];
+    for (var m = 0; m < phrase.length; m++){
+      var n = phrase[m];
+      note(n[1], at + n[0] * BEAT, n[2], 0.085, 'sine');
+      note(n[1] * 2, at + n[0] * BEAT, n[2] * 0.5, 0.018, 'triangle');
+    }
+  }
+
+  function tick(){
+    if (!ctx || !playing) return;
+    while (nextBarAt < ctx.currentTime + 0.6){
+      scheduleBar(nextBarAt, bar);
+      bar++;
+      nextBarAt += BAR;
+    }
+  }
+
+  function initAudio(){
+    if (ctx) return true;
+    if (!AC) return false;
+    try {
+      ctx = new AC();
+    } catch (e) { return false; }
+    if (navigator.audioSession) {
+      try { navigator.audioSession.type = 'playback'; } catch (e) {}
+    }
+    master = ctx.createGain();
+    master.gain.value = 0.0001;
+    var delay = ctx.createDelay(1);
+    delay.delayTime.value = 0.28;
+    var feedback = ctx.createGain();
+    feedback.gain.value = 0.26;
+    var wet = ctx.createGain();
+    wet.gain.value = 0.28;
+    master.connect(ctx.destination);
+    master.connect(delay);
+    delay.connect(feedback);
+    feedback.connect(delay);
+    delay.connect(wet);
+    wet.connect(ctx.destination);
+    return true;
+  }
+
+  function fadeTo(value, seconds){
+    var now = ctx.currentTime;
+    var current = Math.max(0.0001, master.gain.value);
+    master.gain.cancelScheduledValues(now);
+    master.gain.setValueAtTime(current, now);
+    master.gain.linearRampToValueAtTime(Math.max(0.0001, value), now + seconds);
+  }
+
+  function setMusic(on){
+    playing = on;
+    musicBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    musicLabel.textContent = on ? 'pausa musik' : 'spela musik';
+  }
+
+  musicBtn.addEventListener('click', function(){
+    if (!initAudio()){
+      musicLabel.textContent = 'musik stöds ej';
+      musicBtn.disabled = true;
+      return;
+    }
+    if (ctx.state === 'suspended' && ctx.resume) ctx.resume();
+
+    if (playing){
+      setMusic(false);
+      fadeTo(0.0001, 0.6);
+      if (sched) { clearInterval(sched); sched = null; }
+      return;
+    }
+
+    setMusic(true);
+    nextBarAt = ctx.currentTime + 0.12;
+    tick();
+    fadeTo(VOLUME, 1.2);
+    if (sched) clearInterval(sched);
+    sched = setInterval(tick, 120);
+  });
+
+  // A short chime on the heart, but only once the music is already running.
+  function chime(){
+    if (!ctx || !playing) return;
+    var at = ctx.currentTime + 0.01;
+    var notes = [1046.50, 1318.51, 1567.98];
+    for (var i = 0; i < notes.length; i++){
+      note(notes[i], at + i * 0.07, 0.45, 0.07, 'sine');
+    }
+  }
+
+  document.addEventListener('visibilitychange', function(){
+    if (!ctx) return;
+    if (document.hidden && playing && ctx.suspend) ctx.suspend();
+    else if (!document.hidden && playing && ctx.resume) {
+      ctx.resume();
+      nextBarAt = Math.max(nextBarAt, ctx.currentTime + 0.1);
+    }
+  });
+
+  // ---- Heart ------------------------------------------------------------------------
   var LINES = [
     'Du gör helt vanliga dagar fina bara genom att finnas.',
     'Finaste leendet, finaste skrattet, finaste du.',
-    'Jag blir glad av dig varje dag.',
-    'Du är min favoritmänniska, sötis.',
+    'Jag blir glad av dig varje dag, Saranda.',
+    'Du är min favoritmänniska.',
     'Tack för att du är precis som du är.',
     'Och ja, du är fortfarande bäst.'
   ];
   var li = 0;
   var kisses = 0;
 
-  function popHearts(x, y){
-    var n = reduce ? 4 : 14;
-    for (var i = 0; i < n; i++){
-      var el = document.createElement('span');
-      el.className = 'pop';
-      el.innerHTML = HEART_SVG;
-      var ang = (Math.PI * 2 * i) / n + Math.random() * 0.5;
-      var dist = 70 + Math.random() * 130;
-      el.style.left = x + 'px';
-      el.style.top = y + 'px';
-      el.style.setProperty('--s', (12 + Math.random()*20).toFixed(1) + 'px');
-      el.style.setProperty('--tx', (Math.cos(ang) * dist).toFixed(1) + 'px');
-      el.style.setProperty('--ty', (Math.sin(ang) * dist - 40).toFixed(1) + 'px');
-      el.style.setProperty('--rot', (Math.random()*120 - 60).toFixed(1) + 'deg');
-      el.style.setProperty('--dur', (0.9 + Math.random()*0.6).toFixed(2) + 's');
-      el.style.setProperty('--tint', pick(TINTS));
-      el.addEventListener('animationend', function(){ this.remove(); });
-      burst.appendChild(el);
-    }
-  }
-
   heart.addEventListener('click', function(){
     var r = heart.getBoundingClientRect();
-    popHearts(r.left + r.width/2, r.top + r.height/2);
+    popHearts(r.left + r.width / 2, r.top + r.height / 2);
+    chime();
     kisses += 1;
     countEl.textContent = kisses;
     li = (li + 1) % LINES.length;
