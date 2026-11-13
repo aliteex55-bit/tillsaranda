@@ -337,6 +337,33 @@ button.pill svg{width:1rem;height:1rem;display:block;fill:currentColor;flex:none
   startSky();
   startSparks();
 
+  // Belt and braces. onfinish is not delivered reliably after the page has been frozen
+  // or throttled - measured in a real browser: animations sitting at playState
+  // 'finished' whose nodes were never removed, piling up until the heart cap stalled
+  // the sky. Sweep finished nodes on a timer instead of trusting the event alone.
+  // Sparks run with iterations: Infinity, so they never read as finished and survive.
+  function sweepFinished(root, selector){
+    var nodes = root.querySelectorAll(selector);
+    for (var i = 0; i < nodes.length; i++){
+      var node = nodes[i];
+      if (!node.getAnimations) continue;
+      var list = node.getAnimations();
+      if (!list.length) continue;
+      var done = true;
+      for (var j = 0; j < list.length; j++){
+        if (list[j].playState !== 'finished'){ done = false; break; }
+      }
+      if (!done) continue;
+      for (var k = 0; k < list.length; k++) list[k].cancel();
+      node.remove();
+    }
+  }
+  setInterval(function(){
+    if (document.hidden) return;
+    sweepFinished(sky, '.float-heart');
+    sweepFinished(burst, '.pop');
+  }, 2000);
+
   // Rebuild the ambient layer after a rotation, so positions match the new viewport.
   // Safari on iOS fires resize every time the address bar collapses or expands while
   // scrolling, so only a width change counts — otherwise an ordinary scroll would wipe
