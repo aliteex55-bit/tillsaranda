@@ -10,9 +10,10 @@
      inside @keyframes unreliably. The music is synthesised with Web Audio and only starts
      from a tap, since iOS blocks autoplay with sound. A phone asking for reduced motion
      now gets a calm version of the scene rather than a still one, the ambient layers no
-     longer ask for fifty compositor layers, and if an animation does not advance on the
-     device, a frame loop draws the scene instead. Opening the page with ?debug=1 shows
-     what the phone is really doing. -->
+     longer hold a permanent compositor layer each and are fewer on a phone, and if the
+     page is being painted while animations refuse to advance, a frame loop draws the
+     scene instead. That last test can only see a stopped animation clock; it cannot tell
+     why one stopped. Opening the page with ?debug=1 shows what the phone is doing. -->
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -59,14 +60,17 @@ body{
 }
 
 /* Ambient layers. Both are painted behind the content and never take taps. */
-#sky,#burst{position:fixed;inset:0;overflow:hidden;pointer-events:none}
+/* The longhands are there for WebKit older than iOS 14.5, which drops the inset
+   shorthand. Without them both layers would size to their content, and since every
+   child is absolutely positioned that means 0x0 with overflow:hidden - an empty sky. */
+#sky,#burst{position:fixed;top:0;right:0;bottom:0;left:0;inset:0;overflow:hidden;pointer-events:none}
 #sky{z-index:0}
 #burst{z-index:3}
-/* No will-change and no translateZ() here on purpose. Each one asks for its own
-   compositor layer, and about fifty of them at once is enough for Safari on an iPhone
-   to run out of layer memory and stop painting the moving tiles, which looks exactly
-   like the frozen background the user reported. An animated transform gets promoted
-   when it genuinely needs it. */
+/* No will-change and no translateZ() here. To be accurate about what that buys: a
+   transform that is actively animating gets composited either way, so this does not cut
+   the layer count while the scene moves. What it does remove is a permanent layer per
+   node, held even when a node is idle. The real pressure is the number of nodes, and
+   that is now budgeted by screen width in startSky/startSparks. */
 .float-heart,.pop,.spark{position:absolute;top:0;left:0}
 .float-heart svg,.pop svg,.spark svg{display:block;width:100%;height:auto;fill:currentColor}
 
@@ -76,7 +80,7 @@ body{
   width:100%;max-width:40rem;
   min-height:100vh;
   min-height:100svh;
-  margin-inline:auto;
+  margin-left:auto;margin-right:auto;margin-inline:auto;
   padding-left:max(16px,env(safe-area-inset-left,0px));
   padding-right:max(16px,env(safe-area-inset-right,0px));
   padding-top:max(clamp(1.5rem,5vh,3rem),env(safe-area-inset-top,0px));
@@ -88,7 +92,7 @@ body{
 .eyebrow{
   margin:0;font-size:.78rem;font-weight:600;letter-spacing:.32em;text-transform:uppercase;
   color:var(--blush);opacity:.85;
-  animation:fadeUp .7s ease-out both
+  animation:fadeUpDim .7s ease-out both
 }
 .title{
   margin:0;font-family:var(--font-display);font-weight:400;line-height:1.04;
@@ -119,7 +123,7 @@ body{
   animation:fadeUp .8s .12s ease-out both
 }
 .heart-wrap .glow{
-  position:absolute;inset:-20%;border-radius:50%;
+  position:absolute;top:-20%;right:-20%;bottom:-20%;left:-20%;inset:-20%;border-radius:50%;
   background:radial-gradient(circle,rgba(255,122,179,.5) 0%,rgba(255,122,179,0) 68%);
   animation:halo 1.6s ease-in-out infinite;pointer-events:none
 }
@@ -152,19 +156,27 @@ body{
   from{opacity:0;-webkit-transform:translateY(14px);transform:translateY(14px)}
   to{opacity:1;-webkit-transform:none;transform:none}
 }
-/* Calm versions, used when the phone asks for reduced motion. The point is to settle
-   the page down, not to switch it off: a slow shallow pulse and a plain fade. */
+/* The eyebrow fades to its own .85, not to 1, so its brightness is the same whether the
+   entrance animation ran, was switched off for reduced motion, or was taken off again by
+   the .entered safety net below. */
+@keyframes fadeUpDim{
+  from{opacity:0;-webkit-transform:translateY(14px);transform:translateY(14px)}
+  to{opacity:.85;-webkit-transform:none;transform:none}
+}
+/* Calm versions, used when the phone asks for reduced motion. Settling the page down is
+   the point, but the first attempt went too far: scale(1.035) over 1.6s on a heart about
+   164px wide is under 3px of travel per edge, which reads as standing still - the very
+   complaint this was written to answer. A slow two-stage beat is gentle and still a beat. */
 @keyframes beat-calm{
-  0%,100%{-webkit-transform:scale(1);transform:scale(1)}
-  50%{-webkit-transform:scale(1.035);transform:scale(1.035)}
+  0%{-webkit-transform:scale(1);transform:scale(1)}
+  18%{-webkit-transform:scale(1.07);transform:scale(1.07)}
+  34%{-webkit-transform:scale(1.01);transform:scale(1.01)}
+  48%{-webkit-transform:scale(1.04);transform:scale(1.04)}
+  66%,100%{-webkit-transform:scale(1);transform:scale(1)}
 }
 @keyframes halo-calm{
-  0%,100%{opacity:.52;-webkit-transform:scale(.99);transform:scale(.99)}
-  50%{opacity:.78;-webkit-transform:scale(1.02);transform:scale(1.02)}
-}
-@keyframes fadeIn{
-  from{opacity:0}
-  to{opacity:1}
+  0%,100%{opacity:.4;-webkit-transform:scale(.96);transform:scale(.96)}
+  40%{opacity:.95;-webkit-transform:scale(1.05);transform:scale(1.05)}
 }
 
 .line{
@@ -200,16 +212,39 @@ button.pill svg{width:1rem;height:1rem;display:block;fill:currentColor;flex:none
 /* The user reported a heart that did not beat and a background that did not move while
    the music played. "Reduce Motion" in iOS Accessibility settings produces exactly that,
    because this block used to switch every animation off. On a page whose whole point is
-   a beating heart, the setting should calm the motion, not delete it: the beat slows down
-   and shallows out, the glow breathes gently and the entrance fades without sliding. */
+   a beating heart, the setting should calm the motion, not delete it.
+   The entrance fades are switched off here rather than softened: their fill mode asserts
+   opacity 0 before they start, so an animation that is applied but never actually runs
+   would hold the whole page invisible - and reduced motion is precisely the setting a
+   browser might honour by not running them. */
 @media (prefers-reduced-motion: reduce){
-  .heart-btn svg{animation-name:beat-calm;animation-duration:3.2s}
-  .heart-wrap .glow{animation-name:halo-calm;animation-duration:3.2s}
+  .heart-btn svg{animation-name:beat-calm;animation-duration:2.4s}
+  .heart-wrap .glow{animation-name:halo-calm;animation-duration:2.4s}
   .heart-wrap{-webkit-transition:none;transition:none}
-  .eyebrow,.title,.heart-btn,.line,.controls{animation-name:fadeIn}
+  .eyebrow,.title,.heart-btn,.line,.controls{animation:none}
   .line{-webkit-transition:opacity .28s ease;transition:opacity .28s ease}
   .line.swap{-webkit-transform:none;transform:none}
 }
+/* The same rules behind an attribute the script sets, so ?calm=1 shows this scene on any
+   browser. Without it that switch only flipped the JavaScript half, and the CSS half -
+   the part that decides whether the heart still reads as beating - could not be checked
+   at all on the one device that matters. */
+:root[data-calm="1"] .heart-btn svg{animation-name:beat-calm;animation-duration:2.4s}
+:root[data-calm="1"] .heart-wrap .glow{animation-name:halo-calm;animation-duration:2.4s}
+:root[data-calm="1"] .heart-wrap{-webkit-transition:none;transition:none}
+:root[data-calm="1"] .eyebrow,
+:root[data-calm="1"] .title,
+:root[data-calm="1"] .heart-btn,
+:root[data-calm="1"] .line,
+:root[data-calm="1"] .controls{animation:none}
+:root[data-calm="1"] .line.swap{-webkit-transform:none;transform:none}
+
+/* Safety net for the entrance fades everywhere else: the script adds this class once the
+   entrance is over and the animations come off, so nothing can be left pinned at opacity
+   0 by an animation that was applied and then never ran. The values match where the fades
+   end, so nothing shifts when they go. */
+.entered .eyebrow{animation:none;opacity:.85}
+.entered .title,.entered .heart-btn,.entered .line,.entered .controls{animation:none}
 </style>
 </head>
 <body>
@@ -270,6 +305,23 @@ button.pill svg{width:1rem;height:1rem;display:block;fill:currentColor;flex:none
   if (flags.indexOf('calm=1') > -1) calm = true;
   var forceFrames = flags.indexOf('engine=frames') > -1;
 
+  // The attribute drives the same CSS as the media query, so the calm scene is one state
+  // rather than a JavaScript half and a CSS half that can disagree.
+  if (calm) document.documentElement.setAttribute('data-calm', '1');
+
+  var ua = navigator.userAgent || '';
+  var isApplePhone = /iPad|iPhone|iPod/.test(ua) ||
+                     (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+
+  // The entrance fades hold their elements at opacity 0 until they run. Taking the
+  // animations off once the entrance is over means a browser that applies an animation
+  // but never runs it can never leave the whole page invisible.
+  setTimeout(function(){
+    var root = document.documentElement;
+    if (root.classList) root.classList.add('entered');
+    else root.className += ' entered';
+  }, 1700);
+
   var sky = document.getElementById('sky');
   var burst = document.getElementById('burst');
   var heart = document.getElementById('heart');
@@ -283,7 +335,7 @@ button.pill svg{width:1rem;height:1rem;display:block;fill:currentColor;flex:none
   // properties inside @keyframes unreliably, which left the ambient animations frozen on iPhone.
   var canAnimate = typeof document.createElement('div').animate === 'function';
   var useFrames = !canAnimate;        // true once the frame loop owns the scene
-  var engine = 'starting';
+  var engine = useFrames ? 'frame-loop' : 'web-animations';
   var probeMs = null, probeState = '';
 
   var raf = window.requestAnimationFrame ||
@@ -325,11 +377,26 @@ button.pill svg{width:1rem;height:1rem;display:block;fill:currentColor;flex:none
       if (start === null) start = now - p.seed;
       var k = (now - start) / p.dur;
       if (k >= 1){ el.remove(); return false; }
+      // The same four waypoints the Web Animations version uses, so the two engines draw
+      // the same path: most of the sway happens early, and the heart fades out before it
+      // leaves the top edge instead of sliding off at full opacity.
+      var x, y, spun;
+      if (k < 0.14){
+        var a = k / 0.14;
+        x = p.sway * 0.35 * a; y = p.startY * (1 - 0.2 * a); spun = 0.3 * a;
+      } else if (k < 0.86){
+        var b = (k - 0.14) / 0.72;
+        x = p.sway * (0.35 + 0.5 * b); y = p.startY * (0.8 - 0.62 * b); spun = 0.3 + 0.5 * b;
+      } else {
+        var c = (k - 0.86) / 0.14;
+        x = p.sway * (0.85 + 0.15 * c);
+        y = p.startY * 0.18 + (-140 - p.startY * 0.18) * c;
+        spun = 0.8 + 0.2 * c;
+      }
       var fade = k < 0.14 ? k / 0.14 : (k > 0.86 ? (1 - k) / 0.14 : 1);
       el.style.opacity = (p.op * fade).toFixed(3);
-      el.style.transform = 'translate3d(' + (p.sway * k).toFixed(1) + 'px,' +
-        (p.startY + (-140 - p.startY) * k).toFixed(1) + 'px,0) rotate(' +
-        (p.spin * k).toFixed(1) + 'deg)';
+      el.style.transform = 'translate3d(' + x.toFixed(1) + 'px,' + y.toFixed(1) +
+        'px,0) rotate(' + (p.spin * spun).toFixed(1) + 'deg)';
       return true;
     });
   }
@@ -352,7 +419,10 @@ button.pill svg{width:1rem;height:1rem;display:block;fill:currentColor;flex:none
       var k = (now - start) / p.dur;
       if (k >= 1){ el.remove(); return false; }
       var e = 1 - Math.pow(1 - k, 3);
-      el.style.opacity = k > 0.7 ? ((1 - k) / 0.3).toFixed(3) : '1';
+      // Keyed off the eased progress, not the raw time: the Web Animations burst starts
+      // dissolving once it has covered 70% of the distance, which it reaches at about a
+      // quarter of its life, and fading on raw time kept it solid far too long.
+      el.style.opacity = e > 0.7 ? ((1 - e) / 0.3).toFixed(3) : '1';
       el.style.transform = 'translate3d(' + (p.tx * e).toFixed(1) + 'px,' + (p.ty * e).toFixed(1) +
         'px,0) scale(' + (0.4 + 0.7 * e).toFixed(3) + ') rotate(' + (p.rot * e).toFixed(1) + 'deg)';
       return true;
@@ -457,10 +527,14 @@ button.pill svg{width:1rem;height:1rem;display:block;fill:currentColor;flex:none
   // Ambient sky. Reduced motion thins it out and slows it down instead of emptying it:
   // the drifting hearts were missing entirely on the user's phone because this used to
   // return early whenever the phone asked for less motion.
+  // The counts are budgeted by screen width as well, because the number of moving nodes
+  // is what actually costs a phone layer memory: about half as many on a phone.
   var spawner = null;
+  function narrow(){ return vw() < 500; }
   function startSky(){
-    var seedCount = calm ? 8 : 14;
-    var cap = calm ? 16 : 34;
+    var small = narrow();
+    var seedCount = calm ? (small ? 6 : 8) : (small ? 10 : 14);
+    var cap = calm ? (small ? 12 : 16) : (small ? 18 : 34);
     for (var i = 0; i < seedCount; i++) makeHeart(true);
     if (spawner) clearInterval(spawner);
     spawner = setInterval(function(){
@@ -469,42 +543,95 @@ button.pill svg{width:1rem;height:1rem;display:block;fill:currentColor;flex:none
     }, calm ? 1800 : 900);
   }
   function startSparks(){
-    var n = calm ? 12 : 20;
+    var small = narrow();
+    var n = calm ? (small ? 8 : 12) : (small ? 12 : 20);
     for (var s = 0; s < n; s++) makeSpark();
   }
-
-  // Measure before choosing an engine. Reduce Motion, Low Power Mode and older WebKit
-  // builds can each leave an animation sitting at its first frame, and a sky frozen like
-  // that is exactly what the user saw, so the page checks that an animation really
-  // advances on this device before relying on one.
-  function probe(done){
-    if (forceFrames || !canAnimate) return done(false);
-    var p = document.createElement('span');
-    p.setAttribute('aria-hidden', 'true');
-    p.style.cssText = 'position:fixed;left:-9999px;top:0;width:4px;height:4px;pointer-events:none';
-    document.body.appendChild(p);
-    var a;
-    try {
-      a = p.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 4000, iterations: Infinity });
-    } catch (e) {
-      p.parentNode.removeChild(p);
-      return done(false);
+  function rebuildSky(){
+    // Cancel first: clearing the container would otherwise leave infinite spark
+    // animations running on detached nodes. Frame jobs need no cancelling, because each
+    // one retires itself as soon as its node has no parent.
+    var nodes = sky.querySelectorAll('.float-heart,.spark');
+    for (var i = 0; i < nodes.length; i++){
+      if (nodes[i].getAnimations){
+        var list = nodes[i].getAnimations();
+        for (var j = 0; j < list.length; j++) list[j].cancel();
+      }
     }
-    setTimeout(function(){
-      try { probeMs = Number(a.currentTime) || 0; } catch (e) { probeMs = 0; }
-      try { probeState = a.playState; } catch (e) { probeState = 'unknown'; }
-      try { a.cancel(); } catch (e) {}
-      if (p.parentNode) p.parentNode.removeChild(p);
-      done(probeMs > 0 && probeState !== 'idle');
-    }, 260);
-  }
-
-  probe(function(ok){
-    useFrames = !ok;
-    engine = ok ? 'web-animations' : 'frame-loop';
+    sky.textContent = '';
     startSky();
     startSparks();
-  });
+  }
+
+  startSky();
+  startSparks();
+
+  // Choosing an engine honestly takes two clocks, not one. requestAnimationFrame and
+  // performance.now() say whether the page is being painted at all; the probe animation's
+  // own currentTime says whether animations advance. Only "painting, and yet the animation
+  // clock is stuck" justifies taking over. The first version of this sampled once after
+  // 260ms and could not tell those two apart, so a page that simply had not painted yet -
+  // a background tab, a slow start - was read as a browser that cannot animate, and the
+  // verdict was permanent. Web Animations keeps the scene unless the frame loop is proven
+  // necessary, because it is the lighter path on exactly the phones that need help.
+  var nowMs = (window.performance && window.performance.now) ?
+              function(){ return window.performance.now(); } :
+              function(){ return Date.now(); };
+
+  function measure(done){
+    if (forceFrames || !canAnimate) return done(true);
+    if (document.hidden) return done(null);      // nothing is provable while unpainted
+    var el = document.createElement('span');
+    el.setAttribute('aria-hidden', 'true');
+    el.style.cssText = 'position:fixed;left:-9999px;top:0;width:4px;height:4px;pointer-events:none';
+    document.body.appendChild(el);
+    var anim;
+    try {
+      anim = el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 4000, iterations: Infinity });
+    } catch (e) {
+      if (el.parentNode) el.parentNode.removeChild(el);
+      return done(true);
+    }
+
+    var frames = 0, firstAt = 0, settled = false;
+    function finish(verdict){
+      if (settled) return;
+      settled = true;
+      clearTimeout(giveUp);
+      try { probeMs = Number(anim.currentTime) || 0; } catch (e) { probeMs = 0; }
+      try { probeState = anim.playState; } catch (e) { probeState = 'unknown'; }
+      try { anim.cancel(); } catch (e) {}
+      if (el.parentNode) el.parentNode.removeChild(el);
+      done(verdict);
+    }
+    // No frames at all within this window means the page is not being painted, which
+    // proves nothing either way, so the verdict is "unknown" rather than "broken".
+    var giveUp = setTimeout(function(){ finish(null); }, 1700);
+
+    (function look(){
+      raf(function(){
+        if (settled) return;
+        var t = nowMs();
+        frames++;
+        if (!firstAt) firstAt = t;
+        var moved = 0;
+        try { moved = Number(anim.currentTime) || 0; } catch (e) {}
+        if (moved > 0) return finish(false);                        // animations advance
+        if (frames >= 3 && t - firstAt > 120) return finish(true);  // painting, clock stuck
+        look();
+      });
+    })();
+  }
+
+  function applyVerdict(v){
+    if (v === null || v === useFrames) return;
+    useFrames = v;
+    engine = v ? 'frame-loop' : 'web-animations';
+    if (!v) restoreCssBeat();
+    rebuildSky();
+  }
+
+  measure(applyVerdict);
 
   // A safety net, not a fix for a known browser bug: each node is normally removed by
   // its own onfinish. This keeps the two layers from growing without bound if a finish
@@ -543,20 +670,7 @@ button.pill svg{width:1rem;height:1rem;display:block;fill:currentColor;flex:none
     if (window.innerWidth === lastW) return;
     lastW = window.innerWidth;
     if (resizeTimer) clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(function(){
-      // Cancel first: clearing the container leaves infinite spark animations running
-      // on detached nodes, which would pile up on every rotation.
-      var nodes = sky.querySelectorAll('.float-heart,.spark');
-      for (var i = 0; i < nodes.length; i++){
-        if (nodes[i].getAnimations){
-          var list = nodes[i].getAnimations();
-          for (var j = 0; j < list.length; j++) list[j].cancel();
-        }
-      }
-      sky.textContent = '';
-      startSky();
-      startSparks();
-    }, 350);
+    resizeTimer = setTimeout(rebuildSky, 350);
   });
 
   // ---- Music: a small music box, synthesised in the browser. -------------------------
@@ -632,7 +746,9 @@ button.pill svg{width:1rem;height:1rem;display:block;fill:currentColor;flex:none
     // older iPhones say so instead of playing to nobody.
     if (navigator.audioSession) {
       try { navigator.audioSession.type = 'playback'; } catch (e) {}
-    } else if (hintEl) {
+    } else if (hintEl && isApplePhone) {
+      // Only on the devices that have that switch. Keyed on the missing API alone, this
+      // told desktop and Android visitors to go and check a button they do not have.
       hintEl.textContent = 'Tryck på hjärtat. Hör du ingen musik? Kolla ljudknappen på sidan av telefonen.';
     }
     master = ctx.createGain();
@@ -752,7 +868,15 @@ button.pill svg{width:1rem;height:1rem;display:block;fill:currentColor;flex:none
   var beatByFrames = false;
 
   function beatScale(k){
-    if (calm) return 1 + 0.035 * smooth(k < 0.5 ? k * 2 : (1 - k) * 2);
+    // Both arms mirror their keyframes exactly, so the scene looks the same whichever
+    // engine is drawing it: two thumps and a rest, gentler and slower in the calm one.
+    if (calm){
+      if (k < 0.18) return 1 + 0.07 * smooth(k / 0.18);
+      if (k < 0.34) return 1.01 + 0.06 * smooth(1 - (k - 0.18) / 0.16);
+      if (k < 0.48) return 1.01 + 0.03 * smooth((k - 0.34) / 0.14);
+      if (k < 0.66) return 1 + 0.04 * smooth(1 - (k - 0.48) / 0.18);
+      return 1;
+    }
     if (k < 0.14) return 1 + 0.09 * smooth(k / 0.14);
     if (k < 0.28) return 1 + 0.09 * smooth(1 - (k - 0.14) / 0.14);
     if (k < 0.42) return 1 + 0.05 * smooth((k - 0.28) / 0.14);
@@ -763,39 +887,75 @@ button.pill svg{width:1rem;height:1rem;display:block;fill:currentColor;flex:none
   function startBeatByFrames(){
     if (beatByFrames || !heartSvg) return;
     beatByFrames = true;
-    // Clear the CSS animation first: a paused animation still asserts its own transform,
-    // and that would win over an inline style.
-    heartSvg.style.animation = 'none';
-    if (glowEl) glowEl.style.animation = 'none';
-    var period = calm ? 3200 : 1600;
+    var period = calm ? 2400 : 1600;
+    var t0 = null;
     addJob(function(now){
-      var k = (now % period) / period;
+      if (!beatByFrames) return false;
+      if (t0 === null){
+        t0 = now;
+        // Switched off from inside the first frame that actually ran, never before it.
+        // Done up front, a browser that is not delivering frames would lose its CSS beat
+        // to a loop that then never draws - the one case this exists for, made worse.
+        // The phase is anchored here too, so the loop takes over from the resting pose
+        // the stalled animation was showing instead of snapping to a random point.
+        heartSvg.style.animation = 'none';
+        if (glowEl) glowEl.style.animation = 'none';
+      }
+      var k = ((now - t0) % period) / period;
       heartSvg.style.transform = 'scale(' + beatScale(k).toFixed(4) + ')';
       if (glowEl){
         var g = smooth(k < 0.3 ? k / 0.3 : (1 - k) / 0.7);
-        glowEl.style.opacity = ((calm ? 0.52 : 0.5) + (calm ? 0.26 : 0.45) * g).toFixed(3);
-        glowEl.style.transform = 'scale(' + ((calm ? 0.99 : 0.96) + (calm ? 0.03 : 0.1) * g).toFixed(3) + ')';
+        glowEl.style.opacity = ((calm ? 0.4 : 0.5) + (calm ? 0.55 : 0.45) * g).toFixed(3);
+        glowEl.style.transform = 'scale(' + (0.96 + (calm ? 0.09 : 0.1) * g).toFixed(3) + ')';
       }
       return true;
     });
   }
 
+  // A verdict that can be taken back: if a later measurement shows animations running
+  // after all, the compositor gets the beat back and the loop retires.
+  function restoreCssBeat(){
+    if (!beatByFrames) return;
+    beatByFrames = false;
+    if (heartSvg){ heartSvg.style.animation = ''; heartSvg.style.transform = ''; }
+    if (glowEl){ glowEl.style.animation = ''; glowEl.style.opacity = ''; glowEl.style.transform = ''; }
+  }
+
   function watchBeat(){
-    if (!heartSvg) return;
+    if (!heartSvg || beatByFrames) return;
     if (forceFrames) { startBeatByFrames(); return; }
-    if (!window.getComputedStyle) return;
-    var seen = [], n = 0;
+    if (!window.getComputedStyle || document.hidden) return;
+    var seen = [], n = 0, frames = 0, counting = true;
+    // The samples run on plain timers, because gating them on requestAnimationFrame would
+    // mean the check never runs in one of the cases it exists for. The frame counter runs
+    // alongside purely as evidence: a page that painted nothing across the window has not
+    // shown that its beat is stuck, only that it was never drawn.
+    (function count(){ raf(function(){ if (counting){ frames++; count(); } }); })();
     (function step(){
       var value = '';
-      try { value = window.getComputedStyle(heartSvg).transform || ''; } catch (e) { return; }
+      try { value = window.getComputedStyle(heartSvg).transform || ''; }
+      catch (e) { counting = false; return; }
       seen.push(value);
       if (++n < 3){ setTimeout(step, 420); return; }
+      counting = false;
+      if (document.hidden || frames < 6) return;
       if (seen[0] === seen[1] && seen[1] === seen[2]) startBeatByFrames();
     })();
   }
-  // Plain timers, deliberately: gating this on requestAnimationFrame would mean the check
-  // never runs in the one case it is for, a browser that has stopped delivering frames.
   setTimeout(watchBeat, 150);
+
+  // No verdict here is permanent. Coming back to the page - from another app, from the
+  // back button, from a tab that was never painted while it loaded - measures again, and
+  // either measurement can hand the scene back to the compositor.
+  function remeasure(){
+    if (document.hidden) return;
+    measure(function(v){
+      applyVerdict(v);
+      if (!beatByFrames) setTimeout(watchBeat, 150);
+    });
+  }
+  document.addEventListener('visibilitychange', remeasure);
+  window.addEventListener('pageshow', function(e){ if (e && e.persisted) remeasure(); });
 
   // The press state is set from events rather than :active, which iOS can leave stuck on
   // an element after a tap.
